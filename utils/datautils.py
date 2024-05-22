@@ -33,6 +33,38 @@ def get_wikitext2(nsamples, seed, seqlen, model):
     return trainloader, testenc
 
 
+def read_file(file_path):
+    import json
+    dataset = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            input_dict = json.loads(line.strip())
+            dataset.append(input_dict.get('input', ''))
+    return dataset
+
+
+def get_custom(dir, nsamples, seqlen, model):
+    from torch.utils.data import DataLoader
+    traindata = read_file(dir)
+    traindata = traindata[:nsamples]
+    testdata = []
+
+    from transformers import AutoTokenizer
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False, trust_remote_code = True)
+    except:
+        tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True, trust_remote_code = True)
+
+    trainloader = []
+    for i in range(nsamples):
+        inp = tokenizer(traindata[i], return_tensors='pt', padding='max_length', max_length=seqlen).input_ids
+        inp = inp[:, 0:seqlen]
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+    return trainloader, testdata
+
+
 def get_ptb(nsamples, seed, seqlen, model):
     from datasets import load_dataset
     traindata = load_dataset('ptb_text_only', 'penn_treebank', split='train')
@@ -176,7 +208,9 @@ def get_c4_new(nsamples, seed, seqlen, model):
     return trainloader, valenc
 
 
-def get_loaders(name, nsamples=128, seed=0, seqlen=2048, model=''):
+def get_loaders(name, dir='', nsamples=128, seed=0, seqlen=4096, model=''):
+    if 'custom' in name:
+        return get_custom(dir, nsamples, seqlen, model)
     if 'wikitext2' in name:
         return get_wikitext2(nsamples, seed, seqlen, model)
     if 'ptb' in name:
